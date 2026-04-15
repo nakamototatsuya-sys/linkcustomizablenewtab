@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Tab</title>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#f5f4f0; --surface:#fff; --border:#e4e2dc;
+      --accent:#4a6fa5; --accent-dim:rgba(74,111,165,0.08);
+      --accent-today:#4a6fa5; --text:#1a1a1a; --text-muted:#999591;
+      --text-dim:#555250; --card-hover:#f0eeea;
+      --shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 1px var(--border);
+      --shadow-hover:0 4px 14px rgba(0,0,0,0.10),0 0 0 1px #d0cec8;
+      --card-scale:1;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 24px 60px;}
+
+    /* ── top row ── */
+    .top-row{display:flex;align-items:center;justify-content:center;gap:32px;margin-bottom:20px;animation:fadeDown 0.6s ease both;width:100%;max-width:980px;}
+    .clock-block{text-align:center;flex-shrink:0;min-width:220px;}
+    .header-time{font-family:'DM Mono',monospace;font-size:clamp(59px,8vw,87px);font-weight:300;letter-spacing:-2px;color:var(--text);line-height:1;}
+    .header-date{font-family:'Shippori Mincho',serif;font-size:15px;font-weight:600;color:var(--text-muted);margin-top:8px;letter-spacing:2px;}
+    .divider{width:32px;height:1px;background:var(--accent);margin:16px auto 0;opacity:0.4;}
+
+    /* ── calendar ── */
+    .mini-cal{background:var(--surface);box-shadow:var(--shadow);border-radius:12px;padding:14px 16px;flex:1;min-width:0;}
+    .cal-header{display:flex;align-items:baseline;gap:6px;margin-bottom:10px;}
+    .cal-month{font-family:'Shippori Mincho',serif;font-size:17px;font-weight:600;color:var(--text);}
+    .cal-year{font-size:11px;color:var(--text-muted);letter-spacing:1px;}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;}
+    .cal-dow{font-size:12px;font-weight:600;color:var(--text-muted);padding:2px 0 4px;}
+    .cal-dow:first-child{color:#c0392b;}.cal-dow:last-child{color:var(--accent);}
+    .cal-day{font-size:15px;font-weight:600;padding:3px 2px;border-radius:50%;color:var(--text-dim);line-height:1.6;cursor:default;}
+    .cal-day.empty{color:transparent;}.cal-day.sun{color:#c0392b;}.cal-day.sat{color:var(--accent);}
+    .cal-day.today{background:var(--accent-today);color:#fff!important;font-weight:600;}
+
+    /* ── main flat grid ── */
+    .main-area{width:100%;max-width:980px;}
+    .flat-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;}
+    .cat-label-row{display:none;}
+    .cat-label-row:first-child{padding-top:0;}
+
+    /* ── link card ── */
+    .link-card{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:calc(6px * var(--card-scale));
+      padding:calc(15px * var(--card-scale)) calc(9px * var(--card-scale));
+      background:var(--surface);box-shadow:var(--shadow);border-radius:10px;
+      text-decoration:none;color:var(--text-dim);
+      transition:background 0.15s,box-shadow 0.15s,transform 0.15s,opacity 0.15s;
+      overflow:hidden;user-select:none;cursor:grab;position:relative;
+    }
+    .link-card:hover{background:var(--card-hover);box-shadow:var(--shadow-hover);color:var(--text);transform:translateY(-2px);}
+    .link-card.ghost{opacity:0.2;transform:scale(0.94);cursor:grabbing;}
+    .link-card.ins-before::before{content:'';position:absolute;left:-6px;top:4px;bottom:4px;width:3px;background:var(--accent);border-radius:2px;}
+    .link-card.ins-after::after {content:'';position:absolute;right:-6px;top:4px;bottom:4px;width:3px;background:var(--accent);border-radius:2px;}
+    .link-favicon{width:calc(42px * var(--card-scale));height:calc(42px * var(--card-scale));border-radius:6px;flex-shrink:0;pointer-events:none;}
+    .link-favicon-placeholder{width:calc(42px * var(--card-scale));height:calc(42px * var(--card-scale));border-radius:6px;background:var(--accent-dim);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:calc(20px * var(--card-scale));color:var(--accent);flex-shrink:0;pointer-events:none;}
+    .link-name{font-size:calc(15px * var(--card-scale));text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;padding:0 calc(6px * var(--card-scale));pointer-events:none;}
+
+    /* ── floating clone ── */
+    #drag-clone{
+      position:fixed;pointer-events:none;z-index:9999;display:none;
+      flex-direction:column;align-items:center;justify-content:center;
+      gap:calc(6px * var(--card-scale));
+      padding:calc(15px * var(--card-scale)) calc(9px * var(--card-scale));
+      background:var(--surface);border-radius:10px;
+      box-shadow:0 8px 28px rgba(0,0,0,0.20);
+      opacity:0.9;transform:scale(1.06);transition:none;
+    }
+
+    /* ════════════════════════════════
+       左サイドバー
+       全リンク＋カテゴリ区切りを縦一列に。
+       ドラッグ中のみ出現。
+    ════════════════════════════════ */
+    #cat-sidebar{
+      position:fixed;left:0;top:0;bottom:0;
+      width:130px;
+      display:flex;flex-direction:column;justify-content:center;
+      padding:24px 12px;
+      z-index:500;
+      opacity:0;pointer-events:none;
+      transition:opacity 0.18s;
+      overflow-y:auto;
+    }
+    #cat-sidebar.visible{opacity:1;pointer-events:auto;}
+
+    /* カテゴリラベル区切り */
+    .sb-cat-label{
+      font-size:8px;letter-spacing:3px;text-transform:uppercase;
+      color:var(--accent);padding:10px 4px 4px;
+      pointer-events:none; /* ドロップ対象にしない */
+    }
+    .sb-cat-label:first-child{padding-top:0;}
+
+    /* 各リンク行 */
+    .sb-item{
+      font-size:10px;color:var(--text-muted);
+      padding:5px 6px;border-radius:5px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      border-top:2px solid transparent;
+      transition:border-color 0.1s, background 0.1s;
+      cursor:default;
+    }
+    .sb-item.sb-ghost{opacity:0.25;}
+    /* 挿入インジケーター */
+    .sb-item.sb-ins{border-top-color:var(--accent);background:var(--accent-dim);}
+
+    /* ── size controls ── */
+    #size-controls{position:fixed;bottom:24px;right:24px;display:flex;align-items:center;gap:6px;z-index:100;}
+    .size-btn{width:34px;height:34px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:20px;line-height:1;transition:all 0.18s;user-select:none;}
+    .size-btn:hover{color:var(--accent);box-shadow:var(--shadow-hover);}
+    .size-btn:disabled{opacity:0.3;cursor:default;box-shadow:var(--shadow);}
+    #size-label{font-size:10px;letter-spacing:1px;color:var(--text-muted);min-width:32px;text-align:center;}
+
+    @keyframes fadeDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── gear / overlay / panel ── */
+    #edit-btn{position:fixed;top:18px;left:18px;width:36px;height:36px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:18px;transition:all 0.18s;z-index:100;}
+    #edit-btn:hover{color:var(--accent);box-shadow:var(--shadow-hover);}
+    #edit-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.15);z-index:199;}
+    #edit-overlay.open{display:block;}
+    #edit-panel{position:fixed;top:0;left:0;width:460px;height:100vh;background:var(--surface);box-shadow:4px 0 24px rgba(0,0,0,0.12);z-index:200;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform 0.25s ease;}
+    #edit-panel.open{transform:translateX(0);}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .panel-title{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);}
+    #panel-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-muted);line-height:1;padding:2px 6px;border-radius:4px;}
+    #panel-close:hover{background:var(--bg);color:var(--text);}
+    .panel-body{overflow-y:auto;flex:1;padding:14px 20px;}
+    .panel-cat{margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+    .panel-cat-header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--border);}
+    .cat-drag-handle{cursor:grab;color:var(--text-muted);font-size:14px;padding:2px 4px;flex-shrink:0;}
+    .cat-name-input{flex:1;font-family:'DM Mono',monospace;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--accent);background:transparent;border:none;outline:none;min-width:0;}
+    .cat-name-input:focus{background:var(--surface);border-radius:4px;padding:2px 6px;}
+    .cat-del-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;padding:2px 4px;border-radius:4px;flex-shrink:0;}
+    .cat-del-btn:hover{color:#c0392b;background:#fdf0ef;}
+    .panel-cat.cat-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+    .panel-links{padding:10px 12px;}
+    .panel-col-labels{display:grid;grid-template-columns:16px 1fr 1.6fr 24px 20px;gap:6px;margin-bottom:4px;}
+    .panel-col-labels span{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);}
+    .panel-row{display:grid;grid-template-columns:16px 1fr 1.6fr 24px 20px;gap:6px;margin-bottom:5px;align-items:center;border-top:2px solid transparent;transition:border-color 0.1s;}
+    .panel-row.row-over{border-top-color:var(--accent);}
+    .row-handle{cursor:grab;color:var(--text-muted);font-size:12px;text-align:center;padding:4px 0;}
+    .panel-row input{padding:5px 8px;font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);outline:none;transition:border-color 0.15s;min-width:0;}
+    .panel-row input:focus{border-color:var(--accent);}
+    .row-del{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px;border-radius:4px;line-height:1;text-align:center;}
+    .row-del:hover{color:#c0392b;background:#fdf0ef;}
+    .add-row-btn{margin-top:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--accent);background:var(--accent-dim);border:1px dashed rgba(74,111,165,0.3);border-radius:6px;padding:5px 10px;cursor:pointer;width:100%;text-align:center;}
+    .add-row-btn:hover{background:rgba(74,111,165,0.15);}
+    .add-cat-btn{width:100%;margin-top:4px;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--text-muted);background:transparent;border:1px dashed var(--border);border-radius:10px;padding:10px;cursor:pointer;text-align:center;transition:all 0.15s;}
+    .add-cat-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+    .panel-io-row{display:flex;gap:8px;padding:10px 20px;border-top:1px solid var(--border);flex-shrink:0;}
+    .io-btn{padding:7px 12px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text-muted);cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+    .io-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+    #import-file{display:none;}
+    .panel-footer{padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:12px;}
+    #save-btn{flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;transition:opacity 0.15s;}
+    #save-btn:hover{opacity:0.85;}
+    #save-msg{font-size:11px;color:#27ae60;opacity:0;transition:opacity 0.4s;white-space:nowrap;}
+    .fav-btn-wrap{position:relative;display:flex;flex-direction:column;align-items:center;}
+    .fav-preview{
+      width:24px;height:24px;border-radius:4px;
+      background:var(--accent-dim);border:1px solid var(--border);
+      display:flex;align-items:center;justify-content:center;
+      font-size:9px;color:var(--accent);cursor:pointer;
+      transition:box-shadow 0.15s;flex-shrink:0;
+    }
+    .fav-preview:hover{box-shadow:0 0 0 2px var(--accent);}
+    .fav-url-input{
+      position:absolute;top:28px;right:0;z-index:50;
+      width:220px;padding:5px 8px;
+      font-family:'DM Mono',monospace;font-size:11px;
+      border:1px solid var(--accent);border-radius:6px;
+      background:var(--surface);color:var(--text);
+      box-shadow:0 4px 12px rgba(0,0,0,0.12);
+      outline:none;
+    }
+
+    /* フラットパネル用 */
+    .panel-cat-divider{
+      display:flex;align-items:center;gap:6px;
+      padding:14px 0 4px;
+      border-top:1px solid var(--border);
+      margin-top:6px;
+    }
+    .panel-cat-divider:first-child{border-top:none;margin-top:0;padding-top:2px;}
+    .panel-cat-divider .cat-name-input{
+      flex:1;font-family:'DM Mono',monospace;font-size:10px;
+      font-weight:700;letter-spacing:3px;text-transform:uppercase;
+      color:var(--accent);background:transparent;border:none;outline:none;
+    }
+    .panel-cat-divider .cat-name-input:focus{
+      background:var(--accent-dim);border-radius:4px;padding:2px 6px;
+    }
+    .cat-add-link-btn{
+      background:none;border:none;cursor:pointer;
+      color:var(--accent);font-size:14px;padding:2px 4px;
+      border-radius:4px;line-height:1;flex-shrink:0;
+    }
+    .cat-add-link-btn:hover{background:var(--accent-dim);}
+    .panel-row.row-over{border-top:2px solid var(--accent);}
+    .panel-cat-divider.row-over{border-top:2px solid var(--accent);}
+  </style>
+</head>
+<body>
+
+<button id="edit-btn" title="リンクを編集">⚙</button>
+<div id="edit-overlay"></div>
+<div id="drag-clone"></div>
+<div id="cat-sidebar"></div>
+
+<div id="edit-panel">
+  <div class="panel-header">
+    <span class="panel-title">リンクを編集</span>
+    <button id="panel-close">×</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-io-row">
+    <button class="io-btn" id="export-btn">↓ エクスポート</button>
+    <label class="io-btn" for="import-file">↑ インポート</label>
+    <input type="file" id="import-file" accept=".json">
+  </div>
+  <div class="panel-footer">
+    <button id="save-btn">SAVE</button>
+    <span id="save-msg">✓ 保存しました</span>
+  </div>
+</div>
+
+<div id="size-controls">
+  <button class="size-btn" id="size-down">−</button>
+  <span id="size-label">100%</span>
+  <button class="size-btn" id="size-up">＋</button>
+</div>
+
+<div class="top-row">
+  <div class="mini-cal" id="cal-this"></div>
+  <div class="clock-block">
+    <div class="header-time" id="clock">00:00</div>
+    <div class="header-date" id="date-label">読み込み中...</div>
+    <div class="divider"></div>
+  </div>
+  <div class="mini-cal" id="cal-next"></div>
+</div>
+
+<div class="main-area">
+  <div class="flat-grid" id="flat-grid"></div>
+</div>
+
+<script>
+/* ── データ ── */
+const DEFAULT_CATEGORIES = [
+  {name:"毎日使う",links:[
+    {name:"Gmail",url:"https://mail.google.com"},
+    {name:"Google Drive",url:"https://drive.google.com"},
+    {name:"Calendar",url:"https://calendar.google.com"},
+    {name:"YouTube",url:"https://youtube.com"},
+    {name:"Maps",url:"https://maps.google.com"},
+    {name:"Photos",url:"https://photos.google.com"},
+    {name:"Keep",url:"https://keep.google.com"},
+    {name:"Translate",url:"https://translate.google.com"},
+  ]},
+  {name:"仕事・開発",links:[
+    {name:"Notion",url:"https://notion.so"},
+    {name:"GitHub",url:"https://github.com"},
+    {name:"Slack",url:"https://slack.com"},
+    {name:"Figma",url:"https://figma.com"},
+    {name:"Vercel",url:"https://vercel.com"},
+    {name:"Linear",url:"https://linear.app"},
+    {name:"Jira",url:"https://www.atlassian.com/software/jira"},
+    {name:"Confluence",url:"https://www.atlassian.com/software/confluence"},
+  ]},
+  {name:"情報収集",links:[
+    {name:"Zenn",url:"https://zenn.dev"},
+    {name:"Qiita",url:"https://qiita.com"},
+    {name:"Hacker News",url:"https://news.ycombinator.com"},
+    {name:"X",url:"https://x.com"},
+    {name:"Reddit",url:"https://reddit.com"},
+    {name:"Feedly",url:"https://feedly.com"},
+    {name:"note",url:"https://note.com"},
+    {name:"Pocket",url:"https://getpocket.com"},
+  ]},
+  {name:"ショッピング・その他",links:[
+    {name:"Amazon",url:"https://amazon.co.jp"},
+    {name:"Mercari",url:"https://mercari.com"},
+    {name:"ChatGPT",url:"https://chatgpt.com"},
+    {name:"Claude",url:"https://claude.ai"},
+    {name:"Perplexity",url:"https://perplexity.ai"},
+    {name:"Spotify",url:"https://open.spotify.com"},
+    {name:"Netflix",url:"https://netflix.com"},
+    {name:"PayPay",url:"https://paypay.ne.jp"},
+  ]},
+];
+function loadCats(){try{const s=localStorage.getItem('newtab_links');if(s)return JSON.parse(s);}catch(e){}return JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));}
+function saveCats(c){localStorage.setItem('newtab_links',JSON.stringify(c));}
+let categories=loadCats();
+
+/* ── 時計 ── */
+function updateClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+  const days=['日','月','火','水','木','金','土'];
+  document.getElementById('date-label').textContent=`${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日（${days[n.getDay()]}）`;
+}
+updateClock();setInterval(updateClock,1000);
+
+/* ── 祝日 ── */
+let holidays=new Set(),holidayNames=new Map();
+async function fetchHolidays(){
+  const now=new Date();
+  const years=[now.getFullYear(), now.getFullYear()+1];
+  try{
+    for(const year of years){
+      const res=await fetch('https://date.nager.at/api/v3/PublicHolidays/'+year+'/JP');
+      if(!res.ok)continue;
+      const data=await res.json();
+      for(const h of data){
+        const parts=h.date.split('-');
+        const key=parts[0]+'/'+parseInt(parts[1])+'/'+parseInt(parts[2]);
+        holidays.add(key);
+        holidayNames.set(key, h.localName||h.name);
+      }
+    }
+  }catch(e){console.warn('祝日取得失敗',e);}
+  renderCals();
+}
+function buildCal(year,month,id){
+  const mn=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const today=new Date(),isThis=today.getFullYear()===year&&today.getMonth()===month;
+  const wrap=document.getElementById(id);wrap.innerHTML='';
+  const hdr=document.createElement('div');hdr.className='cal-header';
+  hdr.innerHTML=`<span class="cal-month">${mn[month]}</span><span class="cal-year">${year}</span>`;
+  wrap.appendChild(hdr);
+  const g=document.createElement('div');g.className='cal-grid';
+  ['日','月','火','水','木','金','土'].forEach(d=>{const el=document.createElement('div');el.className='cal-dow';el.textContent=d;g.appendChild(el);});
+  const fd=new Date(year,month,1).getDay(),ld=new Date(year,month+1,0).getDate();
+  for(let i=0;i<fd;i++){const el=document.createElement('div');el.className='cal-day empty';el.textContent='0';g.appendChild(el);}
+  for(let d=1;d<=ld;d++){
+    const key=`${year}/${month+1}/${d}`,dow=(fd+d-1)%7,isHol=holidays.has(key);
+    let cls='cal-day';if(dow===0||isHol)cls+=' sun';else if(dow===6)cls+=' sat';
+    if(isThis&&d===today.getDate())cls+=' today';
+    const el=document.createElement('div');el.className=cls;el.textContent=d;
+    if(isHol)el.title=holidayNames.get(key)||'祝日';
+    g.appendChild(el);
+  }
+  wrap.appendChild(g);
+}
+function renderCals(){
+  const n=new Date();buildCal(n.getFullYear(),n.getMonth(),'cal-this');
+  const nx=new Date(n.getFullYear(),n.getMonth()+1,1);buildCal(nx.getFullYear(),nx.getMonth(),'cal-next');
+}
+renderCals();fetchHolidays();
+
+/* ══════════════════════════════
+   フラット化ヘルパー
+   categories → [{type:'cat',ci,name} | {type:'link',ci,li,name,url}]
+   の順序付きリストに変換して扱う
+══════════════════════════════ */
+function flatList(){
+  const list=[];
+  categories.forEach((cat,ci)=>{
+    list.push({type:'cat',ci,name:cat.name});
+    cat.links.forEach((link,li)=>{
+      list.push({type:'link',ci,li,name:link.name,url:link.url});
+    });
+  });
+  return list;
+}
+
+/* フラットリストを categories に書き戻す */
+function applyFlatList(list){
+  // カテゴリ名は保持したまま links を空に
+  categories.forEach(c=>c.links=[]);
+  let curCi=-1;
+  list.forEach(item=>{
+    if(item.type==='cat'){curCi=item.ci;}
+    else if(item.type==='link'&&curCi>=0){
+      categories[curCi].links.push({name:item.name,url:item.url});
+    }
+  });
+}
+
+/* ── メイングリッド描画 ── */
+function makeFavicon(link){
+  const ph=document.createElement('div');ph.className='link-favicon-placeholder';ph.textContent=(link.name[0]||'?').toUpperCase();
+  let imgSrc='';
+  if(link.faviconUrl){
+    // 直接画像URLとして使う
+    imgSrc=link.faviconUrl;
+  } else {
+    let host='';try{host=new URL(link.url).hostname;}catch{}
+    if(host) imgSrc=`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  }
+  if(imgSrc){
+    const img=document.createElement('img');img.className='link-favicon';
+    img.src=imgSrc;
+    img.onload=()=>{if(img.naturalWidth>1&&ph.parentNode)ph.parentNode.replaceChild(img,ph);};
+  }
+  return ph;
+}
+
+function renderLinks(){
+  const grid=document.getElementById('flat-grid');
+  grid.innerHTML='';
+  categories.forEach((cat,ci)=>{
+    const lbl=document.createElement('div');lbl.className='cat-label-row';lbl.textContent=cat.name;
+    grid.appendChild(lbl);
+    cat.links.forEach((link,li)=>{
+      const a=document.createElement('a');
+      a.className='link-card';a.href=link.url;
+      a.dataset.ci=ci;a.dataset.li=li;
+      a.appendChild(makeFavicon(link));
+      const nm=document.createElement('span');nm.className='link-name';nm.textContent=link.name;
+      a.appendChild(nm);
+      a.addEventListener('mousedown',onCardMouseDown);
+      grid.appendChild(a);
+    });
+  });
+}
+renderLinks();
+
+/* ══════════════════════════════════════
+   マウスドラッグ
+   ドラッグ中は左サイドバーに全リンクを
+   カテゴリラベル区切りで縦並び表示。
+   sb-item 上でドロップ → そこに挿入。
+   カテゴリラベルをまたいで移動すれば
+   カテゴリ変更になる。
+══════════════════════════════════════ */
+const drag={srcCi:null,srcLi:null,startX:0,startY:0,moved:false,ghostEl:null,offsetX:0,offsetY:0};
+
+// サイドバーのフラットリスト（link アイテムのみ対象）
+let sbItems=[]; // [{el, ci, li}]
+
+function buildSidebar(srcCi,srcLi){
+  const sb=document.getElementById('cat-sidebar');
+  sb.innerHTML='';
+  sbItems=[];
+  categories.forEach((cat,ci)=>{
+    const lbl=document.createElement('div');
+    lbl.className='sb-cat-label';lbl.textContent=cat.name;
+    sb.appendChild(lbl);
+    cat.links.forEach((link,li)=>{
+      const el=document.createElement('div');
+      el.className='sb-item';
+      el.textContent=link.name;
+      el.dataset.ci=ci;el.dataset.li=li;
+      if(ci===srcCi&&li===srcLi) el.classList.add('sb-ghost');
+      sb.appendChild(el);
+      sbItems.push({el,ci,li});
+    });
+  });
+  sb.classList.add('visible');
+}
+
+function hideSidebar(){
+  document.getElementById('cat-sidebar').classList.remove('visible');
+  sbItems=[];
+}
+
+function clearSbIndicators(){
+  sbItems.forEach(({el})=>el.classList.remove('sb-ins'));
+}
+
+function onCardMouseDown(e){
+  if(e.button!==0)return;
+  const a=e.currentTarget;
+  drag.srcCi=parseInt(a.dataset.ci);
+  drag.srcLi=parseInt(a.dataset.li);
+  drag.startX=e.clientX;drag.startY=e.clientY;
+  drag.moved=false;drag.ghostEl=a;
+
+  const clone=document.getElementById('drag-clone');
+  clone.innerHTML='';
+  clone.style.width=a.offsetWidth+'px';
+  clone.appendChild(a.children[0].cloneNode(true));
+  clone.appendChild(a.children[1].cloneNode(true));
+  clone.style.display='none';
+  const rect=a.getBoundingClientRect();
+  drag.offsetX=e.clientX-rect.left;drag.offsetY=e.clientY-rect.top;
+
+  document.addEventListener('mousemove',onMouseMove);
+  document.addEventListener('mouseup',onMouseUp);
+  e.preventDefault();
+}
+
+function onMouseMove(e){
+  const dx=e.clientX-drag.startX,dy=e.clientY-drag.startY;
+  if(!drag.moved&&Math.sqrt(dx*dx+dy*dy)<5)return;
+  if(!drag.moved){
+    drag.moved=true;
+    drag.ghostEl.classList.add('ghost');
+    document.getElementById('drag-clone').style.display='flex';
+    buildSidebar(drag.srcCi,drag.srcLi);
+  }
+
+  const clone=document.getElementById('drag-clone');
+  clone.style.left=(e.clientX-drag.offsetX)+'px';
+  clone.style.top=(e.clientY-drag.offsetY)+'px';
+
+  clearSbIndicators();
+  clone.style.display='none';
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  clone.style.display='flex';
+
+  // サイドバーの sb-item にホバー中？
+  const sbEl=el?.closest('.sb-item');
+  if(sbEl&&!sbEl.classList.contains('sb-ghost')){
+    sbEl.classList.add('sb-ins');
+  }
+
+  // メイングリッドのカード上インジケーター（同カテゴリ内のみ）
+  document.querySelectorAll('.ins-before,.ins-after').forEach(e=>e.classList.remove('ins-before','ins-after'));
+  const card=el?.closest('.link-card');
+  if(card&&card!==drag.ghostEl&&parseInt(card.dataset.ci)===drag.srcCi){
+    const rect=card.getBoundingClientRect();
+    card.classList.add(e.clientX<rect.left+rect.width/2?'ins-before':'ins-after');
+  }
+}
+
+function onMouseUp(e){
+  document.removeEventListener('mousemove',onMouseMove);
+  document.removeEventListener('mouseup',onMouseUp);
+
+  const clone=document.getElementById('drag-clone');
+  clone.style.display='none';
+  drag.ghostEl&&drag.ghostEl.classList.remove('ghost');
+  document.querySelectorAll('.ins-before,.ins-after').forEach(e=>e.classList.remove('ins-before','ins-after'));
+  clearSbIndicators();
+  hideSidebar();
+
+  if(!drag.moved){
+    const link=categories[drag.srcCi]?.links[drag.srcLi];
+    if(link)window.location.href=link.url;
+    drag.moved=false;return;
+  }
+
+  clone.style.display='none';
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  drag.moved=false;
+
+  // ① サイドバーのアイテムにドロップ
+  const sbEl=el?.closest('.sb-item');
+  if(sbEl&&!sbEl.classList.contains('sb-ghost')){
+    const dstCi=parseInt(sbEl.dataset.ci);
+    const dstLi=parseInt(sbEl.dataset.li);
+    const srcCi=drag.srcCi,srcLi=drag.srcLi;
+
+    // フラットリスト操作
+    // 移動元を取り出す
+    const movedLink=categories[srcCi].links.splice(srcLi,1)[0];
+    // 移動先インデックスを補正（同カテゴリで前を抜いた場合）
+    let insertLi=dstLi;
+    if(srcCi===dstCi&&srcLi<dstLi) insertLi--;
+    insertLi=Math.max(0,Math.min(insertLi,categories[dstCi].links.length));
+    categories[dstCi].links.splice(insertLi,0,movedLink);
+    saveCats(categories);
+    renderLinks();
+    return;
+  }
+
+  // ② メイングリッドのカード上（同カテゴリ内並び替え）
+  const card=el?.closest('.link-card');
+  if(card&&card!==drag.ghostEl&&parseInt(card.dataset.ci)===drag.srcCi){
+    const rect=card.getBoundingClientRect();
+    const side=e.clientX<rect.left+rect.width/2?'before':'after';
+    const dstLi=parseInt(card.dataset.li),srcLi=drag.srcLi;
+    if(srcLi!==dstLi){
+      const movedLink=categories[drag.srcCi].links.splice(srcLi,1)[0];
+      let insertAt=dstLi;
+      if(srcLi<dstLi)insertAt--;
+      if(side==='after')insertAt++;
+      insertAt=Math.max(0,Math.min(insertAt,categories[drag.srcCi].links.length));
+      categories[drag.srcCi].links.splice(insertAt,0,movedLink);
+      saveCats(categories);
+      renderLinks();
+    }
+  }
+}
+
+/* ── Edit Panel ── */
+const panel=document.getElementById('edit-panel');
+const overlay=document.getElementById('edit-overlay');
+const panelBody=document.getElementById('panel-body');
+document.getElementById('edit-btn').addEventListener('click',openPanel);
+document.getElementById('panel-close').addEventListener('click',closePanel);
+overlay.addEventListener('click',closePanel);
+function openPanel(){buildPanelUI();panel.classList.add('open');overlay.classList.add('open');}
+function closePanel(){panel.classList.remove('open');overlay.classList.remove('open');}
+
+/* ══════════════════════════════════════
+   編集パネル：フラットリスト方式
+   カテゴリ枠なし。全リンクを1本のリストに。
+   カテゴリ名は編集可能な区切り行として挿入。
+   マウスドラッグで並び替え＆カテゴリ変更。
+══════════════════════════════════════ */
+
+// フラットアイテム: {type:'cat',ci} or {type:'link',ci,li}
+// ドラッグ状態
+let pDrag={srcIdx:null, startY:0, moved:false, ghostEl:null};
+
+function buildPanelUI(){
+  panelBody.innerHTML='';
+
+  // カラムヘッダー
+  const hdr=document.createElement('div');hdr.className='panel-col-labels';
+  hdr.style.marginBottom='8px';
+  hdr.innerHTML='<span></span><span>名前</span><span>URL</span><span></span>';
+  panelBody.appendChild(hdr);
+
+  // 全アイテムをフラットに描画
+  renderPanelRows();
+
+  // カテゴリ追加
+  const addCat=document.createElement('button');addCat.className='add-cat-btn';addCat.textContent='＋ カテゴリを追加';
+  addCat.addEventListener('click',()=>{
+    categories.push({name:'新しいカテゴリ',links:[]});
+    renderLinks();rebuildPanelRows();
+  });
+  panelBody.appendChild(addCat);
+}
+
+function rebuildPanelRows(){
+  // パネルを開いたまま再描画
+  const existing=panelBody.querySelector('#panel-flat-list');
+  if(existing) existing.remove();
+  const addCat=panelBody.querySelector('.add-cat-btn');
+  const list=makePanelFlatList();
+  panelBody.insertBefore(list, addCat);
+}
+
+function renderPanelRows(){
+  const list=makePanelFlatList();
+  panelBody.appendChild(list);
+}
+
+function makePanelFlatList(){
+  const wrap=document.createElement('div');
+  wrap.id='panel-flat-list';
+
+  // フラット配列を作る [{type,ci,li?}]
+  const items=[];
+  categories.forEach((cat,ci)=>{
+    items.push({type:'cat',ci});
+    cat.links.forEach((link,li)=>items.push({type:'link',ci,li}));
+  });
+
+  items.forEach((item,idx)=>{
+    if(item.type==='cat'){
+      // カテゴリ区切り行
+      const row=document.createElement('div');
+      row.className='panel-cat-divider';
+      row.dataset.idx=idx;
+
+      const nameIn=document.createElement('input');
+      nameIn.className='cat-name-input';
+      nameIn.value=categories[item.ci].name;
+      nameIn.addEventListener('input',e=>{categories[item.ci].name=e.target.value;renderLinks();});
+
+      const delBtn=document.createElement('button');
+      delBtn.className='cat-del-btn';delBtn.textContent='✕';delBtn.title='カテゴリを削除';
+      delBtn.addEventListener('click',()=>{
+        if(!confirm(`「${categories[item.ci].name}」を削除しますか？（リンクもすべて削除）`))return;
+        categories.splice(item.ci,1);
+        renderLinks();rebuildPanelRows();
+      });
+
+      const addLink=document.createElement('button');
+      addLink.className='cat-add-link-btn';addLink.textContent='＋';addLink.title='このカテゴリにリンクを追加';
+      addLink.addEventListener('click',()=>{
+        categories[item.ci].links.push({name:'',url:'https://'});
+        renderLinks();rebuildPanelRows();
+      });
+
+      row.appendChild(nameIn);row.appendChild(addLink);row.appendChild(delBtn);
+      wrap.appendChild(row);
+
+    } else {
+      // リンク行
+      const link=categories[item.ci].links[item.li];
+      const row=document.createElement('div');
+      row.className='panel-row';
+      row.dataset.idx=idx;
+
+      // ハンドル（マウスドラッグ）
+      const rh=document.createElement('span');rh.className='row-handle';rh.textContent='⠿';
+      rh.addEventListener('mousedown',e=>{
+        e.preventDefault();e.stopPropagation();
+        pDrag.srcIdx=idx;
+        pDrag.startY=e.clientY;
+        pDrag.moved=false;
+        pDrag.ghostEl=row;
+        document.addEventListener('mousemove',onPanelMouseMove);
+        document.addEventListener('mouseup',onPanelMouseUp);
+      });
+
+      const nameIn=document.createElement('input');nameIn.type='text';nameIn.placeholder='サイト名';nameIn.value=link.name;
+      nameIn.addEventListener('input',e=>{link.name=e.target.value;});
+
+      const urlIn=document.createElement('input');urlIn.type='text';urlIn.placeholder='https://...';urlIn.value=link.url;
+      urlIn.addEventListener('input',e=>{link.url=e.target.value;});
+
+      const delBtn=document.createElement('button');delBtn.className='row-del';delBtn.textContent='✕';
+      delBtn.addEventListener('click',()=>{
+        categories[item.ci].links.splice(item.li,1);
+        renderLinks();rebuildPanelRows();
+      });
+
+      // ファビコン取得用URLボタン
+      const favWrap=document.createElement('div');favWrap.className='fav-btn-wrap';
+      // ファビコンプレビュー
+      const favPrev=document.createElement('div');favPrev.className='fav-preview';
+      const favHost=()=>{let h='';const b=link.faviconUrl||link.url;try{h=new URL(b).hostname;}catch{}return h;};
+      const renderFavPrev=()=>{
+        favPrev.innerHTML='';
+        let src='';
+        if(link.faviconUrl){
+          src=link.faviconUrl;
+        } else {
+          const h=favHost();
+          if(h) src=`https://www.google.com/s2/favicons?domain=${h}&sz=32`;
+        }
+        if(src){
+          const img=document.createElement('img');
+          img.src=src;
+          img.style.cssText='width:16px;height:16px;border-radius:3px;display:block;';
+          img.onerror=()=>{favPrev.textContent=(link.name[0]||'?').toUpperCase();};
+          favPrev.appendChild(img);
+        } else {
+          favPrev.textContent=(link.name[0]||'?').toUpperCase();
+        }
+      };
+      renderFavPrev();
+      // クリックでURL入力欄トグル
+      favPrev.title='クリックして画像URLを直接指定';
+      favPrev.style.cursor='pointer';
+      favPrev.addEventListener('click',e=>{
+        e.stopPropagation();
+        const existing=favWrap.querySelector('.fav-url-input');
+        if(existing){existing.remove();return;}
+        const inp=document.createElement('input');
+        inp.className='fav-url-input';
+        inp.type='text';
+        inp.placeholder='画像URL or ファビコンURL (省略可)';
+        inp.value=link.faviconUrl||'';
+        inp.addEventListener('input',ev=>{
+          link.faviconUrl=ev.target.value||undefined;
+          renderFavPrev();
+          renderLinks();
+        });
+        inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key==='Escape')inp.remove();});
+        favWrap.appendChild(inp);
+        inp.focus();
+      });
+      favWrap.appendChild(favPrev);
+
+      row.appendChild(rh);row.appendChild(nameIn);row.appendChild(urlIn);row.appendChild(favWrap);row.appendChild(delBtn);
+      wrap.appendChild(row);
+    }
+  });
+
+  return wrap;
+}
+
+function onPanelMouseMove(e){
+  if(!pDrag.moved&&Math.abs(e.clientY-pDrag.startY)<4)return;
+  if(!pDrag.moved){pDrag.moved=true;pDrag.ghostEl.style.opacity='0.35';}
+  // ホバー中の行にインジケーター
+  document.querySelectorAll('.panel-row.row-over,.panel-cat-divider.row-over').forEach(el=>el.classList.remove('row-over'));
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  const target=el?.closest('[data-idx]');
+  if(target&&target!==pDrag.ghostEl) target.classList.add('row-over');
+}
+
+function onPanelMouseUp(e){
+  document.removeEventListener('mousemove',onPanelMouseMove);
+  document.removeEventListener('mouseup',onPanelMouseUp);
+  document.querySelectorAll('.panel-row.row-over,.panel-cat-divider.row-over').forEach(el=>el.classList.remove('row-over'));
+  if(pDrag.ghostEl) pDrag.ghostEl.style.opacity='';
+
+  if(!pDrag.moved){pDrag.srcIdx=null;pDrag.moved=false;return;}
+
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  const target=el?.closest('[data-idx]');
+  const dstIdx=target?parseInt(target.dataset.idx):null;
+  const srcIdx=pDrag.srcIdx;
+  pDrag.srcIdx=null;pDrag.moved=false;
+
+  if(dstIdx===null||dstIdx===srcIdx)return;
+
+  // フラット配列を再構築して操作
+  const items=[];
+  categories.forEach((cat,ci)=>{
+    items.push({type:'cat',ci,data:cat});
+    cat.links.forEach((link,li)=>items.push({type:'link',ci,li,data:link}));
+  });
+
+  const srcItem=items[srcIdx];
+  if(srcItem.type!=='link')return; // カテゴリ行はドラッグ不可
+
+  // 移動先がカテゴリ行の場合はその直下、リンク行の場合はその位置
+  const dstItem=items[dstIdx];
+
+  // categories を直接書き換え
+  // 1. 元の位置から削除
+  const movedLink={...srcItem.data};
+  categories[srcItem.ci].links.splice(srcItem.li,1);
+
+  // 2. フラット配列を再構築（削除後）
+  const items2=[];
+  categories.forEach((cat,ci)=>{
+    items2.push({type:'cat',ci});
+    cat.links.forEach((link,li)=>items2.push({type:'link',ci,li}));
+  });
+
+  // 3. 挿入先を探す
+  // dstIdx が指していたアイテムを items2 で探す（同じ ci/li のもの）
+  let insertCi, insertLi;
+  if(dstItem.type==='cat'){
+    // カテゴリ区切りの直後（そのカテゴリの先頭）
+    insertCi=dstItem.ci;
+    insertLi=0;
+  } else {
+    // リンク行：削除後のインデックスを補正して探す
+    let li2=dstItem.li;
+    if(dstItem.ci===srcItem.ci&&srcItem.li<dstItem.li) li2--;
+    li2=Math.max(0,li2);
+    insertCi=dstItem.ci;
+    insertLi=li2;
+  }
+
+  categories[insertCi].links.splice(insertLi,0,movedLink);
+  renderLinks();
+  rebuildPanelRows();
+}
+
+/* ── サイズ ── */
+const STEPS=[0.6,0.7,0.8,0.9,1.0,1.1,1.25,1.5,1.75,2.0];
+let si=(()=>{const s=parseFloat(localStorage.getItem('newtab_scale')||'1.0');const i=STEPS.indexOf(s);return i>=0?i:4;})();
+function applyScale(){
+  const s=STEPS[si];
+  document.documentElement.style.setProperty('--card-scale',s);
+  document.getElementById('size-label').textContent=Math.round(s*100)+'%';
+  document.getElementById('size-down').disabled=si===0;
+  document.getElementById('size-up').disabled=si===STEPS.length-1;
+  localStorage.setItem('newtab_scale',s);
+}
+applyScale();
+document.getElementById('size-up').addEventListener('click',()=>{if(si<STEPS.length-1){si++;applyScale();}});
+document.getElementById('size-down').addEventListener('click',()=>{if(si>0){si--;applyScale();}});
+
+/* ── Save ── */
+document.getElementById('save-btn').addEventListener('click',()=>{
+  saveCats(categories);renderLinks();
+  const msg=document.getElementById('save-msg');msg.style.opacity='1';
+  setTimeout(()=>{msg.style.opacity='0';},2000);
+});
+
+/* ── Export ── */
+document.getElementById('export-btn').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(categories,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download='newtab-links.json';a.click();URL.revokeObjectURL(url);
+});
+
+/* ── Import ── */
+document.getElementById('import-file').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!Array.isArray(data)||!data.every(c=>typeof c.name==='string'&&Array.isArray(c.links))){alert('形式が正しくありません');return;}
+      if(!confirm(`${data.length}カテゴリ・${data.reduce((s,c)=>s+c.links.length,0)}リンクをインポートします。上書きされます。`))return;
+      categories=data;saveCats(categories);renderLinks();buildPanelUI();
+      const msg=document.getElementById('save-msg');msg.textContent='✓ インポートしました';msg.style.opacity='1';
+      setTimeout(()=>{ msg.style.opacity='0';msg.textContent='✓ 保存しました';},2500);
+    }catch{alert('JSONの読み込みに失敗しました');}
+  };
+  reader.readAsText(file);e.target.value='';
+});
+</script>
+</body>
+</html>
