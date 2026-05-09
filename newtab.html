@@ -19,7 +19,7 @@
     body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 24px 60px;}
 
     /* ── top row ── */
-    .top-row{display:flex;align-items:center;justify-content:center;gap:32px;margin-bottom:20px;animation:fadeDown 0.6s ease both;width:100%;max-width:980px;}
+    .top-row{display:flex;align-items:center;justify-content:center;gap:32px;margin-bottom:20px;animation:fadeDown 0.6s ease both;width:100%;max-width:1080px;}
     .clock-block{text-align:center;flex-shrink:0;min-width:220px;}
     .header-time{font-family:'DM Mono',monospace;font-size:clamp(59px,8vw,87px);font-weight:300;letter-spacing:-2px;color:var(--text);line-height:1;}
     .header-date{font-family:'Shippori Mincho',serif;font-size:15px;font-weight:600;color:var(--text-muted);margin-top:8px;letter-spacing:2px;}
@@ -38,8 +38,8 @@
     .cal-day.today{background:var(--accent-today);color:#fff!important;font-weight:600;}
 
     /* ── main flat grid ── */
-    .main-area{width:100%;max-width:980px;}
-    .flat-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;}
+    .main-area{width:100%;max-width:1080px;}
+    .flat-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:10px;}
     .cat-label-row{display:none;}
     .cat-label-row:first-child{padding-top:0;}
 
@@ -231,9 +231,13 @@
 </div>
 
 <div id="size-controls">
-  <button class="size-btn" id="size-down">−</button>
-  <span id="size-label">100%</span>
-  <button class="size-btn" id="size-up">＋</button>
+  <button class="size-btn" id="scale-down" title="縮小">−</button>
+  <span id="scale-label">100%</span>
+  <button class="size-btn" id="scale-up" title="拡大">＋</button>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+  <button class="size-btn" id="col-down" title="列を減らす">−</button>
+  <span id="col-label">10列</span>
+  <button class="size-btn" id="col-up" title="列を増やす">＋</button>
 </div>
 
 <div class="top-row">
@@ -254,44 +258,20 @@
 /* ── データ ── */
 const DEFAULT_CATEGORIES = [
   {name:"毎日使う",links:[
-    {name:"Gmail",url:"https://mail.google.com"},
-    {name:"Google Drive",url:"https://drive.google.com"},
-    {name:"Calendar",url:"https://calendar.google.com"},
-    {name:"YouTube",url:"https://youtube.com"},
-    {name:"Maps",url:"https://maps.google.com"},
-    {name:"Photos",url:"https://photos.google.com"},
-    {name:"Keep",url:"https://keep.google.com"},
-    {name:"Translate",url:"https://translate.google.com"},
+    {name:"サイト1",url:"#"},{name:"サイト2",url:"#"},{name:"サイト3",url:"#"},{name:"サイト4",url:"#"},{name:"サイト5",url:"#"},
+    {name:"サイト6",url:"#"},{name:"サイト7",url:"#"},{name:"サイト8",url:"#"},{name:"サイト9",url:"#"},{name:"サイト10",url:"#"},
   ]},
-  {name:"仕事・開発",links:[
-    {name:"Notion",url:"https://notion.so"},
-    {name:"GitHub",url:"https://github.com"},
-    {name:"Slack",url:"https://slack.com"},
-    {name:"Figma",url:"https://figma.com"},
-    {name:"Vercel",url:"https://vercel.com"},
-    {name:"Linear",url:"https://linear.app"},
-    {name:"Jira",url:"https://www.atlassian.com/software/jira"},
-    {name:"Confluence",url:"https://www.atlassian.com/software/confluence"},
+  {name:"仕事",links:[
+    {name:"サイト1",url:"#"},{name:"サイト2",url:"#"},{name:"サイト3",url:"#"},{name:"サイト4",url:"#"},{name:"サイト5",url:"#"},
+    {name:"サイト6",url:"#"},{name:"サイト7",url:"#"},{name:"サイト8",url:"#"},{name:"サイト9",url:"#"},{name:"サイト10",url:"#"},
   ]},
   {name:"情報収集",links:[
-    {name:"Zenn",url:"https://zenn.dev"},
-    {name:"Qiita",url:"https://qiita.com"},
-    {name:"Hacker News",url:"https://news.ycombinator.com"},
-    {name:"X",url:"https://x.com"},
-    {name:"Reddit",url:"https://reddit.com"},
-    {name:"Feedly",url:"https://feedly.com"},
-    {name:"note",url:"https://note.com"},
-    {name:"Pocket",url:"https://getpocket.com"},
+    {name:"サイト1",url:"#"},{name:"サイト2",url:"#"},{name:"サイト3",url:"#"},{name:"サイト4",url:"#"},{name:"サイト5",url:"#"},
+    {name:"サイト6",url:"#"},{name:"サイト7",url:"#"},{name:"サイト8",url:"#"},{name:"サイト9",url:"#"},{name:"サイト10",url:"#"},
   ]},
-  {name:"ショッピング・その他",links:[
-    {name:"Amazon",url:"https://amazon.co.jp"},
-    {name:"Mercari",url:"https://mercari.com"},
-    {name:"ChatGPT",url:"https://chatgpt.com"},
-    {name:"Claude",url:"https://claude.ai"},
-    {name:"Perplexity",url:"https://perplexity.ai"},
-    {name:"Spotify",url:"https://open.spotify.com"},
-    {name:"Netflix",url:"https://netflix.com"},
-    {name:"PayPay",url:"https://paypay.ne.jp"},
+  {name:"ショッピング",links:[
+    {name:"サイト1",url:"#"},{name:"サイト2",url:"#"},{name:"サイト3",url:"#"},{name:"サイト4",url:"#"},{name:"サイト5",url:"#"},
+    {name:"サイト6",url:"#"},{name:"サイト7",url:"#"},{name:"サイト8",url:"#"},{name:"サイト9",url:"#"},{name:"サイト10",url:"#"},
   ]},
 ];
 function loadCats(){try{const s=localStorage.getItem('newtab_links');if(s)return JSON.parse(s);}catch(e){}return JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));}
@@ -837,20 +817,34 @@ function onPanelMouseUp(e){
   rebuildPanelRows();
 }
 
-/* ── サイズ ── */
-const STEPS=[0.6,0.7,0.8,0.9,1.0,1.1,1.25,1.5,1.75,2.0];
-let si=(()=>{const s=parseFloat(localStorage.getItem('newtab_scale')||'1.0');const i=STEPS.indexOf(s);return i>=0?i:4;})();
+/* ── 倍率 ── */
+const SCALE_STEPS=[0.6,0.7,0.8,0.9,1.0,1.1,1.25,1.5,1.75,2.0];
+let si=(()=>{const s=parseFloat(localStorage.getItem('newtab_scale')||'1.0');const i=SCALE_STEPS.indexOf(s);return i>=0?i:4;})();
 function applyScale(){
-  const s=STEPS[si];
+  const s=SCALE_STEPS[si];
   document.documentElement.style.setProperty('--card-scale',s);
-  document.getElementById('size-label').textContent=Math.round(s*100)+'%';
-  document.getElementById('size-down').disabled=si===0;
-  document.getElementById('size-up').disabled=si===STEPS.length-1;
+  document.getElementById('scale-label').textContent=Math.round(s*100)+'%';
+  document.getElementById('scale-down').disabled=si===0;
+  document.getElementById('scale-up').disabled=si===SCALE_STEPS.length-1;
   localStorage.setItem('newtab_scale',s);
 }
 applyScale();
-document.getElementById('size-up').addEventListener('click',()=>{if(si<STEPS.length-1){si++;applyScale();}});
-document.getElementById('size-down').addEventListener('click',()=>{if(si>0){si--;applyScale();}});
+document.getElementById('scale-up').addEventListener('click',()=>{if(si<SCALE_STEPS.length-1){si++;applyScale();}});
+document.getElementById('scale-down').addEventListener('click',()=>{if(si>0){si--;applyScale();}});
+
+/* ── 列数 ── */
+const COL_MIN=3, COL_MAX=12;
+let cols=(()=>{const s=parseInt(localStorage.getItem('newtab_cols')||'10');return Math.min(Math.max(s,COL_MIN),COL_MAX);})();
+function applyCols(){
+  document.getElementById('flat-grid').style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  document.getElementById('col-label').textContent=cols+'列';
+  document.getElementById('col-down').disabled=cols<=COL_MIN;
+  document.getElementById('col-up').disabled=cols>=COL_MAX;
+  localStorage.setItem('newtab_cols',cols);
+}
+applyCols();
+document.getElementById('col-up').addEventListener('click',()=>{if(cols<COL_MAX){cols++;applyCols();}});
+document.getElementById('col-down').addEventListener('click',()=>{if(cols>COL_MIN){cols--;applyCols();}});
 
 /* ── Save ── */
 document.getElementById('save-btn').addEventListener('click',()=>{
