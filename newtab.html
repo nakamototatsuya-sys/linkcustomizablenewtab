@@ -254,7 +254,6 @@
     .panel-row.row-over{border-top:2px solid var(--accent);}
     .panel-cat-divider.row-over{border-top:2px solid var(--accent);}
   </style>
-  <script src="config.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -389,7 +388,7 @@ function renderCals(){
 /* ══════════════════════════════════════
    Google Calendar API 連携
 ══════════════════════════════════════ */
-// GCAL_CLIENT_ID は config.js から読み込み
+const GCAL_CLIENT_ID='782975829644-u43bac8lnfs88o54v682rj2345p23d5g.apps.googleusercontent.com';
 const GCAL_SCOPE='https://www.googleapis.com/auth/calendar.readonly';
 let gcalEvents={}; // {"YYYY-M-D": [{summary, start, end}]}
 let tokenClient=null;
