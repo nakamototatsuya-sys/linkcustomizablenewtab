@@ -255,6 +255,7 @@
     .panel-cat-divider.row-over{border-top:2px solid var(--accent);}
   </style>
   <script src="config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -396,7 +397,16 @@ let gapiInited=false;
 
 function gcalLogin(){
   if(!gapiInited){
-    alert('Google APIの読み込み中です。少し待ってから再試行してください。');return;
+    // 再度初期化を試みる
+    if(typeof google!=='undefined'&&google.accounts){
+      initGoogleAPI();
+      setTimeout(()=>{
+        if(gapiInited) tokenClient.requestAccessToken({prompt:'consent'});
+      },500);
+    } else {
+      alert('Google APIの読み込みに失敗しました。ページを再読み込みしてから試してください。');
+    }
+    return;
   }
   tokenClient.requestAccessToken({prompt:'consent'});
 }
@@ -446,11 +456,18 @@ function initGoogleAPI(){
   if(localStorage.getItem('gcal_token'))gcalFetchEvents();
 }
 
-// スクリプト動的ロード
-const gisScript=document.createElement('script');
-gisScript.src='https://accounts.google.com/gsi/client';
-gisScript.onload=initGoogleAPI;
-document.head.appendChild(gisScript);
+// GISはhead内で読み込み済み、window.onloadで初期化
+if(typeof google!=='undefined'&&google.accounts){
+  initGoogleAPI();
+} else {
+  window.addEventListener('load',()=>{
+    if(typeof google!=='undefined'&&google.accounts){
+      initGoogleAPI();
+    } else {
+      console.warn('Google Identity Services の読み込みに失敗しました');
+    }
+  });
+}
 
 /* ── カレンダーポップアップ ── */
 const calPopup=document.getElementById('cal-popup');
